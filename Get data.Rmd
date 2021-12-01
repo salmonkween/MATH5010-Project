@@ -1,0 +1,39 @@
+---
+title: "Get data"
+author: "WendyD"
+date: "11/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+require(quantmod)
+
+#Vector of symbols to fetch prices for
+symbols <- c("MSFT","UNH","COST", "BAC", "GM")
+
+#Initialize a list to store the fetched prices
+myList <- list()
+
+#Loop through symbols, fetch prices, and store in myList
+myList <-lapply(symbols, function(x) {getSymbols(x,from ="2016-11-30",to
+                                  ="2021-11-29",auto.assign=FALSE)} )
+
+#Housekeeping
+names(myList) <- symbols
+
+#Export to seperate files
+quiet <- lapply(1:length(myList), function(x){    #looping through all elements of your list
+  write.csv(myList[[x]],     #accessing the xth element of your list
+            paste0(names(myList)[x],'.csv'),   #naming the exported element
+            row.names=index(myList[[x]])   #include dates in the export
+  )  #close write.csv
+}  #close function
+)  #close lapply
+
+```
