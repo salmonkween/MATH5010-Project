@@ -1,0 +1,359 @@
+---
+title: "qp method with split train test"
+author: "WendyD"
+date: "12/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+title: "qp"
+output: html_document
+---
+
+```{r}
+df_BAC_full <- read.csv(file='BAC.csv', as.is=TRUE)
+df_COST_full <- read.csv(file='COST.csv', as.is=TRUE)
+df_GM_full <- read.csv(file='GM.csv', as.is=TRUE)
+df_MSFT_full <- read.csv(file='MSFT.csv', as.is=TRUE)
+df_UNH_full <- read.csv(file='UNH.csv', as.is=TRUE)
+
+dim(df_BAC)
+```
+
+```{r}
+#Splitting train and test
+
+
+df_BAC <-head(df_BAC_full,round(0.70 * nrow(df_BAC_full)))
+BAC_test <- tail(df_BAC_full, round(0.30 * nrow(df_BAC_full)))
+
+df_COST <- head(df_COST_full,round(0.70 * nrow(df_COST_full)))
+COST_test <- tail(df_COST_full, round(0.30 * nrow(df_COST_full)))
+
+df_GM <- head(df_GM_full,round(0.70 * nrow(df_GM_full)))
+GM_test <- tail(df_GM_full, round(0.30 * nrow(df_GM_full)))
+
+df_MSFT<- head(df_MSFT_full,round(0.70 * nrow(df_MSFT_full)))
+MSFT_test <- tail(df_MSFT_full, round(0.30 * nrow(df_MSFT_full)))
+
+df_UNH <- head(df_UNH_full,round(0.70 * nrow(df_UNH_full)))
+UNH_test <- tail(df_UNH_full, round(0.30 * nrow(df_UNH_full)))
+
+
+```
+
+```{r}
+#calculating the return for 5 stocks using ADJUSTED prices from train set
+
+adjClose <- cbind(BAC_adjusted = df_BAC$BAC.Adjusted, 
+                       COST_adjusted= df_COST$COST.Adjusted,
+                       GM_adjusted = df_GM$GM.Adjusted, 
+                       MSFT_adjusred = df_MSFT$MSFT.Adjusted, 
+                       UNH_adjusted = df_UNH$UNH.Adjusted)
+#typeof(adjClose)
+# calculate return and return covariance matrix
+
+ndays <- nrow(adjClose)
+nstocks <- ncol(adjClose)
+return <- adjClose[2:ndays,]/adjClose[1:(ndays-1),] - 1
+return
+mu <- colMeans(return)
+sigma <- cov(return)
+
+```
+
+
+
+
+```{r}
+#MVP short sell allowed
+library(quadprog)
+
+m <- 200 # no. of points to evaluate
+muP <- seq(.0001,.0015, length=m) # target portfolio return
+sdP <- rep(0, length(muP)) # sd of portfolio return
+weight <- matrix(0, nrow=m, ncol=nstocks) # storage for portfolio weights
+for (i in 1:length(muP)) { # find the optimal portfolios
+  result <- solve.QP(Dmat = 2*sigma, 
+                     dvec = rep(0, nstocks), 
+                     Amat = cbind(rep(1,nstocks), mu), 
+                     bvec = c(1, muP[i]), 
+                     meq = 2)
+  sdP[i] <- sqrt(result$value)
+  weight[i,] <- result$solution
+}
+
+ind <- (sdP==min(sdP))
+weightMVP <- weight[ind,]
+weightMVP
+
+GMP <- which.min(sdP) # global minimum point
+# efficient frontier
+plot(sdP[GMP:m], muP[GMP:m], type="l", 
+     ylim = c(min(muP)-0.001, max(muP)+0.001), xlim = c(0, max(sdP)+0.001), 
+     lwd = 3, col = "red", xlab = "SD of portfolio return",
+     ylab = "mean of portfolio return")
+points(sdP[1:(GMP-1)], muP[1:(GMP-1)], type="l",
+       lty = 2, lwd = 3, col = "red")
+legend("bottomright", legend=c("Efficient Frontier (With Short Sale)"),
+       col=c("red"), lty=1)
+
+
+```
+```{r}
+# MVP, short sale NOT allowed
+muP_noSS <- seq(min(mu), max(mu),length=m) # target portfolio return
+sdP_noSS <- rep(0, length(muP_noSS)) # sd of portfolio return
+weight_noSS <- matrix(0, nrow=m, ncol=nstocks) # storage for portfolio weights
+for (i in 1:length(muP_noSS)) { # find the optimal portfolios
+  result <- solve.QP(Dmat = 2*sigma,
+                    dvec = rep(0, nstocks),
+                    Amat = cbind(rep(1,nstocks), mu, diag(1,nstocks)),
+                    bvec = c(1, muP_noSS[i], rep(0,nstocks)),
+                    meq = 2)
+  sdP_noSS[i] <- sqrt(result$value)
+  weight_noSS[i,] <- result$solution
+}
+
+GMP_noSS <- which.min(sdP_noSS) # global minimum point For no short sell
+weightMVP_noSS <- weight[GMP_noSS,]
+weightMVP_noSS
+
+
+#Plotting efficient frontier
+plot(sdP[GMP:m], muP[GMP:m], type="l", 
+     ylim = c(min(muP)-0.001, max(muP)+0.001), xlim = c(0, max(sdP)+0.001), 
+     lwd = 3, col = "red", xlab = "SD of portfolio return",
+     ylab = "mean of portfolio return")
+points(sdP[1:(GMP-1)], muP[1:(GMP-1)], type="l",
+       lty = 2, lwd = 3, col = "red")
+
+# efficient frontier when short-selling NOT allowed
+points(sdP_noSS[GMP_noSS:m], muP_noSS[GMP_noSS:m], type="l",
+       lwd = 3, col = "blue")
+points(sdP_noSS[1:(GMP_noSS-1)], muP_noSS[1:(GMP_noSS-1)], type = "l",
+       lty = 2,lwd = 3, col = "blue")
+legend("bottomright", legend=c("With Short Sale","No Short Sale"),
+       col=c("red", "blue"), lty=1:1)
+```
+
+# Backtesing using Value at Risk (VaR) Short sell allowed
+
+```{r}
+library(tidyverse)
+library(quantmod)
+library(tidyquant)
+library(dplyr)
+#library(timetk)
+
+adjClose_test <- data.frame(date = BAC_test$X,
+                       BAC_adjusted = BAC_test$BAC.Adjusted, 
+                       COST_adjusted= COST_test$COST.Adjusted,
+                       GM_adjusted = GM_test$GM.Adjusted, 
+                       MSFT_adjusted = MSFT_test$MSFT.Adjusted, 
+                       UNH_adjusted = UNH_test$UNH.Adjusted
+                                )
+#weightMVP
+#weightMVP_noSS
+
+#calculate the return on test data, hiven the weight found from MVP
+#lag function shift the time back by n number of observation
+adjClose_test_return <- adjClose_test %>%
+                   mutate(BAC_return = (BAC_adjusted - lag(BAC_adjusted))/lag(BAC_adjusted),
+                          COST_return = (COST_adjusted - lag(COST_adjusted))/lag(COST_adjusted),
+                          GM_return = (GM_adjusted - lag(GM_adjusted))/lag(GM_adjusted),
+                          MSFT_return = (MSFT_adjusted - lag(MSFT_adjusted))/lag(MSFT_adjusted),
+                          UNH_return = (UNH_adjusted - lag(UNH_adjusted))/lag(UNH_adjusted),
+                          
+                          #calculate gross return
+                          BAC_g_return = BAC_adjusted / lag(BAC_adjusted),
+                          COST_g_return = COST_adjusted / lag(COST_adjusted),
+                          GM_g_return = GM_adjusted / lag(GM_adjusted),
+                          MSFT_g_return = MSFT_adjusted / lag(MSFT_adjusted),
+                          UNH_g_return = UNH_adjusted / lag(UNH_adjusted)
+                           ,
+                           
+
+                          #multiply by weight from MVP method to get the total return of portfolio
+                          mvp_return = weightMVP[1]*BAC_return +
+                                  weightMVP[2]*COST_return+
+                                  weightMVP[3]*GM_return+
+                                  weightMVP[4]*MSFT_return+
+                                  weightMVP[5]*UNH_return
+                          
+                                  
+                        # can add tangency portolio weight here
+                
+                          
+                          
+                         )
+
+
+#adjusted price -> return -> return x weight
+#portfolio value: weight x price
+
+
+```
+
+Calculate VaR
+
+```{r}
+#Buying portfolio based on the weight
+#calculate stock shares
+
+#weightMVP
+#weightMVP_noSS
+
+MVP_shares <-   adjClose_test_return %>%
+                select(date, BAC_adjusted, COST_adjusted, GM_adjusted,
+                     MSFT_adjusted, UNH_adjusted, mvp_return) 
+#head(MVP_shares) 
+
+typeof(MVP_shares)
+
+#Calculate the portfolio
+
+portfolio_value <- as.data.frame(MVP_shares) %>%
+                   mutate(portfolio_value= weightMVP[1]*BAC_adjusted+
+                                                weightMVP[2]*COST_adjusted+
+                                                weightMVP[3]*GM_adjusted +
+                                                weightMVP[4]*MSFT_adjusted +
+                                                weightMVP[5]*UNH_adjusted) 
+
+                                  
+                                           
+                        
+
+ggplot(data = portfolio_value, aes(mvp_return)) + 
+  geom_histogram(fill = "deepskyblue3") +
+  xlab("Return") +
+  ylab("Frequency") +
+  labs(title = "Return of portfolio (Minimum Variance Portfolio: With Short-Selling)")
+
+ggplot(data = portfolio_value, aes(x=as.Date(date), y=mvp_return)) + 
+  geom_line() +
+  xlab("Return") +
+  ylab("Frequency") +
+  scale_x_date(date_breaks = '3 months')
+  labs(title = "Return over time (Minimum Variance Portfolio: With Short-Selling)")  
+
+ggplot(data = portfolio_value, aes(portfolio_value)) + 
+  geom_histogram() +
+  xlab("Portfolio value") +
+  ylab("Frequency") +
+  labs(title = "Portfolio value over time (Minimum Variance Portfolio: With Short-Selling)")  
+
+ggplot(data = portfolio_value, aes(x=as.Date(date), y=portfolio_value)) + 
+  geom_line() +
+  xlab("Date") +
+  ylab("Portfolio Value") +
+  scale_x_date(date_breaks = '3 months')
+  labs(title = "Return over time (Minimum Variance Portfolio: With Short-Selling)")  
+```
+
+
+# Backtesing using Value at Risk (VaR) Short sell NOT allowed
+
+```{r}
+#calculate the return on test data, Given the weight found from MVP
+#lag function shift the time back by n number of observation
+adjClose_test_return_noSS <- adjClose_test %>%
+                   mutate(BAC_return = (BAC_adjusted - lag(BAC_adjusted))/lag(BAC_adjusted),
+                          COST_return = (COST_adjusted - lag(COST_adjusted))/lag(COST_adjusted),
+                          GM_return = (GM_adjusted - lag(GM_adjusted))/lag(GM_adjusted),
+                          MSFT_return = (MSFT_adjusted - lag(MSFT_adjusted))/lag(MSFT_adjusted),
+                          UNH_return = (UNH_adjusted - lag(UNH_adjusted))/lag(UNH_adjusted),
+                          
+                          #calculate gross return
+                          BAC_g_return = BAC_adjusted / lag(BAC_adjusted),
+                          COST_g_return = COST_adjusted / lag(COST_adjusted),
+                          GM_g_return = GM_adjusted / lag(GM_adjusted),
+                          MSFT_g_return = MSFT_adjusted / lag(MSFT_adjusted),
+                          UNH_g_return = UNH_adjusted / lag(UNH_adjusted)
+                           ,
+                           
+
+                          #multiply by weight from MVP method to get the total return of portfolio
+                          mvp_return = weightMVP[1]*BAC_return +
+                                  weightMVP_noSS[2]*COST_return+
+                                  weightMVP_noSS[3]*GM_return+
+                                  weightMVP_noSS[4]*MSFT_return+
+                                  weightMVP_noSS[5]*UNH_return
+                          
+                                  
+                        # can add tangency portolio weight here
+                
+                          
+                          
+                         )
+
+
+#adjusted price -> return -> return x weight
+#portfolio value: weight x price
+
+
+```
+
+
+```{r}
+
+#Buying portfolio based on the weight
+#calculate stock shares
+
+#weightMVP
+#weightMVP_noSS
+
+MVP_shares_noSS <-   adjClose_test_return_noSS%>%
+                select(date, BAC_adjusted, COST_adjusted, GM_adjusted,
+                     MSFT_adjusted, UNH_adjusted, mvp_return) 
+#head(MVP_shares) 
+
+#typeof(MVP_shares_noSS)
+
+#Calculate the portfolio
+
+portfolio_value_noSS <- as.data.frame(MVP_shares_noSS) %>%
+                   mutate(portfolio_value= weightMVP_noSS[1]*BAC_adjusted+
+                                                weightMVP_noSS[2]*COST_adjusted+
+                                                weightMVP_noSS[3]*GM_adjusted +
+                                                weightMVP_noSS[4]*MSFT_adjusted +
+                                                weightMVP_noSS[5]*UNH_adjusted) 
+
+                                  
+                                           
+                        
+
+ggplot(data = portfolio_value_noSS, aes(mvp_return)) + 
+  geom_histogram(fill = "deepskyblue3") +
+  xlab("Return") +
+  ylab("Frequency") +
+  labs(title = "Return of portfolio (Minimum Variance Portfolio: No Short-Selling)")
+
+ggplot(data = portfolio_value_noSS, aes(x=as.Date(date), y=mvp_return)) + 
+  geom_line() +
+  xlab("Return") +
+  ylab("Frequency") +
+  scale_x_date(date_breaks = '3 months')
+  labs(title = "Return over time (Minimum Variance Portfolio: No Short-Selling)")  
+
+ggplot(data = portfolio_value_noSS, aes(portfolio_value)) + 
+  geom_histogram() +
+  xlab("Portfolio value") +
+  ylab("Frequency") +
+  labs(title = "Portfolio value over time (Minimum Variance Portfolio: No Short-Selling)")  
+
+ggplot(data = portfolio_value_noSS, aes(x=as.Date(date), y=portfolio_value)) + 
+  geom_line() +
+  xlab("Date") +
+  ylab("Portfolio Value") +
+  scale_x_date(date_breaks = '3 months')
+  labs(title = "Return over time (Minimum Variance Portfolio: No Short-Selling)")  
+```
+
+```
+
+
