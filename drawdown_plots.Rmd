@@ -1,0 +1,76 @@
+---
+title: "Drawdown Plots"
+author: "Jingyuan Liu"
+date: "12/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(PerformanceAnalytics)
+library(dplyr)
+#
+start_date = as.Date('11/30/16', '%m/%d/%y')
+end_date = as.Date('11/30/21', '%m/%d/%y')
+weights = c(2000/ 30, 2000/400, 2000/45, 2000/215, 2000/335)
+
+
+bac = read.csv('BAC.csv')
+cost = read.csv('cost.csv')
+gm = read.csv('gm.csv')
+msft = read.csv('msft.csv')
+unh = read.csv('unh.csv')
+
+
+stock_df <- merge(merge(merge(merge(bac, cost, by = 'Date'), gm, by = 'Date'), msft, by = 'Date'), unh, by = 'Date')
+stock_df$Date <- as.Date(stock_df$Date, '%m/%d/%Y')
+stock_df <- stock_df %>% filter(Date >= start_date) %>% filter(Date <= end_date) 
+stock_df[,c('Date', 'BAC.Close', 'BAC.Adjusted', 'COST.Close', 
+            'COST.Adjusted', 'GM.Close', 'GM.Adjusted', 'MSFT.Close', 'MSFT.Adjusted', 'UNH.Close', 'UNH.Adjusted')]
+```
+
+```{r}
+library(xts)
+stock_df[order(stock_df$Date),]
+stock_df$portfolio = weights[1] * stock_df$BAC.Adjusted + 
+                    weights[2] * stock_df$COST.Adjusted +
+                    weights[3] * stock_df$GM.Adjusted + 
+                    weights[4] * stock_df$MSFT.Adjusted + 
+                    weights[5] * stock_df$UNH.Adjusted
+
+```
+
+```{r}
+stock_df = stock_df[order(stock_df$Date),]
+stock_df$return = stock_df$portfolio/stock_df$portfolio[1]
+```
+
+```{r}
+stock_df$cur_max = cummax(stock_df$portfolio)
+stock_df$absolute_drawdown = stock_df$portfolio - stock_df$cur_max
+stock_df$percentage_drawdown = stock_df$absolute_drawdown / stock_df$cur_max
+```
+
+
+```{r}
+library(ggplot2)
+ggplot() + 
+  geom_line(data = stock_df, aes(y = absolute_drawdown, x = Date, color = 'Absolute Drawdown'), size = 1) + 
+  geom_line(data = stock_df, aes(y = portfolio,x = Date, color = 'Portfolio NAV'), size = 1) + 
+  geom_line(data= stock_df, aes(y = cur_max,x = Date, color = 'Max Up To Date'), size = 1) + 
+  ylab('') + 
+  ggtitle('Portfolio Value Over Time') + 
+  scale_color_manual(name = "", values = c("Portfolio NAV" = "darkblue", "Absolute Drawdown" = "red", 
+                                                   "Max Up To Date" = "darkgreen"))
+
+```
+
+```{r}
+ggplot(stock_df, aes(x = Date)) + 
+  geom_line(aes(y = percentage_drawdown), color = 'purple', size = 1)+ 
+  scale_y_continuous(labels = scales::percent) + 
+  ggtitle('%Drawdown')
+```
