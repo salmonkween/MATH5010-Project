@@ -21,7 +21,6 @@ df_GM_full <- read.csv(file='GM.csv', as.is=TRUE)
 df_MSFT_full <- read.csv(file='MSFT.csv', as.is=TRUE)
 df_UNH_full <- read.csv(file='UNH.csv', as.is=TRUE)
 
-dim(df_BAC)
 ```
 
 ```{r}
@@ -60,7 +59,6 @@ adjClose <- cbind(BAC_adjusted = df_BAC$BAC.Adjusted,
 ndays <- nrow(adjClose)
 nstocks <- ncol(adjClose)
 return <- adjClose[2:ndays,]/adjClose[1:(ndays-1),] - 1
-return
 mu <- colMeans(return)
 sigma <- cov(return)
 
@@ -120,7 +118,7 @@ for (i in 1:length(muP_noSS)) { # find the optimal portfolios
 }
 
 GMP_noSS <- which.min(sdP_noSS) # global minimum point For no short sell
-weightMVP_noSS <- weight[GMP_noSS,]
+weightMVP_noSS <- weight_noSS[GMP_noSS,]
 weightMVP_noSS
 
 
@@ -193,6 +191,7 @@ adjClose_test_return <- adjClose_test %>%
                          )
 
 
+
 #adjusted price -> return -> return x weight
 #portfolio value: weight x price
 
@@ -224,9 +223,7 @@ portfolio_value <- as.data.frame(MVP_shares) %>%
                                                 weightMVP[4]*MSFT_adjusted +
                                                 weightMVP[5]*UNH_adjusted) 
 
-                                  
-                                           
-                        
+
 
 ggplot(data = portfolio_value, aes(mvp_return)) + 
   geom_histogram(fill = "deepskyblue3") +
@@ -308,8 +305,8 @@ adjClose_test_return_noSS <- adjClose_test %>%
 #weightMVP_noSS
 
 MVP_shares_noSS <-   adjClose_test_return_noSS%>%
-                select(date, BAC_adjusted, COST_adjusted, GM_adjusted,
-                     MSFT_adjusted, UNH_adjusted, mvp_return) 
+                      select(date, BAC_adjusted, COST_adjusted, GM_adjusted,
+                      MSFT_adjusted, UNH_adjusted, mvp_return) 
 #head(MVP_shares) 
 
 #typeof(MVP_shares_noSS)
