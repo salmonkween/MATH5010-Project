@@ -1,0 +1,73 @@
+---
+title: "qp"
+output: html_document
+---
+
+```{r}
+df_BAC <- read.csv(file='BAC.csv', as.is=TRUE)
+df_COST <- read.csv(file='COST.csv', as.is=TRUE)
+df_GM <- read.csv(file='GM.csv', as.is=TRUE)
+df_MSFT <- read.csv(file='MSFT.csv', as.is=TRUE)
+df_UNH <- read.csv(file='UNH.csv', as.is=TRUE)
+```
+
+```{r}
+a <- c(df_BAC$BAC.Close)
+rtn_BAC <- diff(a)/a[-length(a)]
+b <- c(df_COST$COST.Close)
+rtn_COST <- diff(b)/b[-length(b)]
+c <- c(df_GM$GM.Close)
+rtn_GM <- diff(c)/c[-length(c)]
+d <- c(df_MSFT$MSFT.Close)
+rtn_MSFT <- diff(d)/d[-length(d)]
+e <- c(df_UNH$UNH.Close)
+rtn_UNH <- diff(e)/e[-length(e)]
+```
+
+```{r}
+rtn <- cbind(c(rtn_BAC), c(rtn_COST), c(rtn_GM), c(rtn_MSFT), c(rtn_UNH))
+colnames(rtn) <- c("BAC", "COST", "GM", "MSFT", "UNH")
+cov <- cov(rtn) #matrix of return covariance
+```
+
+```{r}
+exp_rtn_BAC <- mean(rtn_BAC)
+exp_rtn_COST <- mean(rtn_COST)
+exp_rtn_GM <- mean(rtn_GM)
+exp_rtn_MSFT <- mean(rtn_MSFT)
+exp_rtn_UNH <- mean(rtn_UNH)
+exp_rtn <- matrix(c(exp_rtn_BAC, exp_rtn_COST, exp_rtn_GM, exp_rtn_MSFT, exp_rtn_UNH), nrow=5, ncol=1) #matrix of expected return
+```
+
+
+```{r}
+#Short sell allowed
+library(quadprog)
+m <- 200 # number of points to evaluate
+muP <- seq(0.0001,0.001,length=m) #target portfolio return
+stP <- rep(0,length(muP))  # sd of portfolio return
+weight <- matrix(0,nrow=m,ncol=5)
+zeros<-array(0,dim=c(5,1))
+for (i in 1:length(muP)){ # find the optimal portfolio
+  result=solve.QP(2*cov,zeros,cbind(rep(1,5),exp_rtn),c(1,muP[i]),meq = 2)
+  stP[i]=sqrt(result$value)
+  weight[i,]=result$solution
+}
+ind <- (stP==min(stP))
+weight[ind,]
+```
+
+```{r}
+#Short sell not allowed
+muP1 <- seq(min(exp_rtn), max(exp_rtn),length=m) 
+stP1 <- rep(0, length(muP1)) 
+weight1 <- matrix(0, nrow=m, ncol=5) 
+for (i in 1:length(muP1)) { 
+  result <- solve.QP(2*cov,zeros,cbind(rep(1,5), exp_rtn,diag(1,5)),c(1, muP1[i], rep(0,5)),meq = 2)
+  stP1[i] <- sqrt(result$value)
+  weight1[i,] <- result$solution
+}
+GMP1 <- which.min(stP1)
+weight1[GMP1, ]
+```
+
