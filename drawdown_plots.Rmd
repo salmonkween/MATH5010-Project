@@ -1,5 +1,5 @@
 ---
-title: "Drawdown Plots"
+title: "Drawdown Plots & "
 author: "Jingyuan Liu"
 date: "12/3/2021"
 output: html_document
@@ -15,7 +15,7 @@ library(dplyr)
 #
 start_date = as.Date('11/30/16', '%m/%d/%y')
 end_date = as.Date('11/30/21', '%m/%d/%y')
-weights = c(2000/ 30, 2000/400, 2000/45, 2000/215, 2000/335)
+weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
 
 
 bac = read.csv('BAC.csv')
@@ -73,4 +73,41 @@ ggplot(stock_df, aes(x = Date)) +
   geom_line(aes(y = percentage_drawdown), color = 'purple', size = 1)+ 
   scale_y_continuous(labels = scales::percent) + 
   ggtitle('%Drawdown')
+```
+
+
+```{r}
+min(stock_df$percentage_drawdown)
+
+```
+
+```{r}
+stock_xts = xts(stock_df[,c('MSFT.Adjusted', 'COST.Adjusted', 'GM.Adjusted', 'BAC.Adjusted', 'UNH.Adjusted')], order.by= stock_df$Date)
+date = xts(stock_df$Date, order.by= stock_df$Date)
+data_set = list(stock_xts, date)
+names(data_set)  = c('adjusted', 'date')
+stock_data_set = list(data_set )
+
+```
+
+```{r}
+library(portfolioBacktest)
+data(dataset10) # load dataset
+# define your own portfolio function
+uniform_portfolio <- function(dataset, ...) {
+N <- ncol(dataset$adjusted)
+return(rep(1/N, N))
+}
+
+# do backtest
+bt <- portfolioBacktest(list("Uniform" = uniform_portfolio), stock_data_set, return_portfolio = TRUE, benchmarks = 'IVP')
+# check your result
+names(bt)
+backtestTable(bt, measures = c("Sharpe ratio", "max drawdown", "annual return"))
+bt_summary <- backtestSummary(bt)
+summaryTable(bt_summary)
+
+```
+```{r}
+summaryBarPlot(bt_summary, measures = c("max drawdown", "annual volatility", "annual return"))
 ```
