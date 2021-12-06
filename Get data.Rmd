@@ -22,7 +22,7 @@ myList <- list()
 
 #Loop through symbols, fetch prices, and store in myList
 myList <-lapply(symbols, function(x) {getSymbols(x,from ="2016-11-30",to
-                                  ="2021-11-29",auto.assign=FALSE)} )
+                                  ="2021-11-30",auto.assign=FALSE)} )
 
 #Housekeeping
 names(myList) <- symbols
